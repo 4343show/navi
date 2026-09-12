@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>名栗チャレンジ ナビ</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #000; color: #fff;
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  padding: 12px; max-width: 420px; margin: 0 auto;
+  min-height: 100vh; -webkit-text-size-adjust: 100%;
+}
+#clock { text-align: center; padding: 8px 0 10px; }
+#clock-hhmm { font-size: 88px; font-weight: 900; letter-spacing: -2px; line-height: 1; color: #FFE033; font-variant-numeric: tabular-nums; }
+#clock-hhmm .sep { color: #886600; }
+#clock-ss { font-size: 26px; color: #886600; margin-top: 2px; font-variant-numeric: tabular-nums; font-weight: 700; }
+#main-card { border-radius: 10px; padding: 16px; margin-bottom: 10px; border-width: 3px; border-style: solid; }
+#main-status { font-size: 22px; font-weight: 900; text-align: center; margin-bottom: 12px; letter-spacing: 0.02em; }
+#main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.main-cell { text-align: center; }
+.main-label { font-size: 11px; color: #888; margin-bottom: 4px; font-weight: 600; letter-spacing: 0.05em; }
+.main-value { font-size: 28px; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1; }
+.main-sub { font-size: 12px; margin-top: 3px; font-weight: 700; }
+#gps-panel { background: #111; border: 2px solid #2a2a2a; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; }
+#gps-row { display: flex; align-items: center; gap: 8px; }
+#gps-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: #aa8800; }
+#gps-text { font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: #aaa; }
+#gps-sub { font-size: 11px; color: #666; margin-top: 3px; padding-left: 18px; }
+#manual-btn { background: #1a1a50; color: #aaaaff; border: 2px solid #4444aa; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+#manual-panel { margin-top: 10px; border-top: 1px solid #2a2a2a; padding-top: 10px; display: none; }
+#manual-panel.open { display: block; }
+#manual-hint { font-size: 11px; color: #666; margin-bottom: 6px; }
+#manual-row { display: flex; gap: 6px; }
+#manual-input { flex: 1; background: #1a1a1a; color: #fff; border: 2px solid #333; border-radius: 6px; padding: 7px 10px; font-size: 13px; }
+#manual-ok { background: #003a1a; color: #00ee66; border: 2px solid #00aa44; border-radius: 6px; padding: 7px 12px; font-size: 13px; font-weight: 700; cursor: pointer; }
+#manual-error { font-size: 11px; color: #ff5555; margin-top: 5px; font-weight: 600; }
+#manual-clear { margin-top: 5px; background: none; color: #555; border: none; font-size: 11px; cursor: pointer; display: none; }
+#checkpoints { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.cp { border-radius: 8px; padding: 10px 14px; border-width: 2px; border-style: solid; }
+.cp-row { display: flex; justify-content: space-between; align-items: center; }
+.cp-name { font-size: 15px; font-weight: 800; }
+.cp-meta { font-size: 11px; color: #666; margin-top: 2px; }
+.cp-dl { font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums; text-align: right; }
+.cp-cd { font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; margin-top: 2px; }
+.cp-rem { font-size: 12px; color: #55aaff; margin-top: 3px; }
+#footer { padding: 8px 12px; background: #111; border-radius: 6px; font-size: 11px; color: #444; line-height: 1.8; }
+</style>
+</head>
+<body>
+<div id="clock">
+  <div id="clock-hhmm">--<span class="sep">:</span>--</div>
+  <div id="clock-ss">--</div>
+</div>
+<div id="main-card">
+  <div id="main-status">--</div>
+  <div id="main-grid">
+    <div class="main-cell">
+      <div class="main-label">今折り返すと飯能着</div>
+      <div class="main-value" id="eta-now">--:--</div>
+      <div class="main-sub" id="eta-now-margin"></div>
+    </div>
+    <div class="main-cell">
+      <div class="main-label">あと進める距離</div>
+      <div class="main-value" id="can-go">-.-</div>
+      <div class="main-sub" style="color:#888">km</div>
+    </div>
+  </div>
+  <div style="margin-top:12px; border-top:1px solid #333; padding-top:10px;">
+    <div class="main-label" style="margin-bottom:4px">13:00に間に合わせるには</div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <span style="font-size:13px; color:#888">必要速度</span>
+        <span id="need-speed" style="font-size:22px; font-weight:900; font-variant-numeric:tabular-nums; margin-left:6px;">--.-</span>
+        <span style="font-size:13px; color:#888"> km/h</span>
+      </div>
+      <div style="text-align:right;">
+        <span style="font-size:13px; color:#888">現在</span>
+        <span id="cur-speed" style="font-size:22px; font-weight:900; font-variant-numeric:tabular-nums; margin-left:6px; color:#FFE033">--.-</span>
+        <span style="font-size:13px; color:#888"> km/h</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="gps-panel">
+  <div id="gps-row">
+    <div id="gps-dot"></div>
+    <div id="gps-text">GPS取得中…</div>
+    <button id="manual-btn" onclick="toggleManual()">手動入力</button>
+  </div>
+  <div id="gps-sub"></div>
+  <div id="manual-panel">
+    <div id="manual-hint">GoogleマップやYahoo!カーナビで現在地の座標をコピー&ペースト</div>
+    <div id="manual-row">
+      <input id="manual-input" placeholder="35.8741, 139.1769" type="text" inputmode="decimal">
+      <button id="manual-ok" onclick="applyManual()">OK</button>
+    </div>
+    <div id="manual-error"></div>
+    <button id="manual-clear" onclick="clearManual()">クリア</button>
+  </div>
+</div>
+<div id="checkpoints"></div>
+<div id="footer">
+  飯能駅スタート 07:00 想定 ／ 飯能発デッドライン 13:00 ／ 帰宅デッドライン 15:00<br>
+  ルートデータ埋め込み済み（200m解像度・323点）
+</div>
+<script>
+const ROUTE = [[35.85148,139.31918,64532],[35.85203,139.31708,64332],[35.85045,139.31698,64132],[35.84927,139.31729,63932],[35.84812,139.31558,63732],[35.84662,139.31451,63532],[35.84487,139.31397,63332],[35.84359,139.31248,63132],[35.84226,139.31103,62932],[35.84071,139.30991,62732],[35.83911,139.30891,62532],[35.8374,139.30821,62332],[35.83713,139.30655,62132],[35.83717,139.30434,61932],[35.83685,139.3022,61732],[35.83553,139.30097,61532],[35.83424,139.29982,61332],[35.8338,139.29791,61132],[35.83341,139.29604,60932],[35.83266,139.29408,60732],[35.83288,139.29201,60532],[35.83414,139.29047,60332],[35.83564,139.28925,60132],[35.8367,139.28764,59932],[35.83584,139.28574,59732],[35.83602,139.28369,59532],[35.83646,139.28156,59332],[35.83812,139.28103,59132],[35.83969,139.28025,58932],[35.84071,139.27844,58732],[35.84142,139.27652,58532],[35.84238,139.27472,58332],[35.84316,139.27275,58132],[35.84337,139.27055,57932],[35.84353,139.26834,57732],[35.8439,139.26619,57532],[35.84505,139.26453,57332],[35.84505,139.26233,57132],[35.84566,139.26029,56932],[35.84613,139.25815,56732],[35.84702,139.25627,56532],[35.8487,139.25555,56332],[35.84983,139.25386,56132],[35.85101,139.2522,55932],[35.85235,139.25076,55732],[35.85342,139.24903,55532],[35.85486,139.2477,55332],[35.85613,139.24618,55132],[35.85703,139.24426,54932],[35.85819,139.24257,54732],[35.85917,139.24079,54532],[35.86002,139.23905,54332],[35.86127,139.23751,54132],[35.86252,139.23598,53932],[35.86329,139.23446,53732],[35.86192,139.23306,53532],[35.86039,139.23196,53332],[35.86039,139.22988,53132],[35.86197,139.22911,52932],[35.86307,139.22744,52732],[35.86314,139.22522,52532],[35.86231,139.22332,52332],[35.86139,139.22144,52132],[35.86021,139.21978,51932],[35.85895,139.21821,51732],[35.85841,139.2161,51532],[35.85892,139.21412,51332],[35.85847,139.21216,51132],[35.85697,139.21098,50932],[35.85619,139.2092,50732],[35.85758,139.20803,50532],[35.85706,139.20623,50332],[35.85578,139.20467,50132],[35.85426,139.20381,49932],[35.8525,139.20396,49732],[35.85111,139.20269,49532],[35.85158,139.20085,49332],[35.85306,139.1996,49132],[35.85424,139.19803,48932],[35.8548,139.19593,48732],[35.8557,139.19401,48532],[35.8571,139.19275,48332],[35.85867,139.19166,48132],[35.8598,139.18996,47932],[35.86119,139.18857,47732],[35.86288,139.18784,47532],[35.86458,139.18805,47332],[35.86623,139.18723,47132],[35.86798,139.1869,46932],[35.86977,139.1868,46732],[35.87157,139.18669,46532],[35.87271,139.18542,46332],[35.87334,139.18339,46132],[35.87268,139.18144,45932],[35.87203,139.17968,45732],[35.8734,139.17827,45532],[35.87389,139.17755,45332],[35.87257,139.17902,45132],[35.87214,139.18077,44932],[35.87326,139.18249,44732],[35.87286,139.18448,44532],[35.87271,139.18662,44332],[35.87413,139.18605,44132],[35.87583,139.18554,43932],[35.87713,139.18418,43732],[35.87868,139.18347,43532],[35.88028,139.18253,43332],[35.88198,139.18189,43132],[35.88364,139.18104,42932],[35.88535,139.18038,42732],[35.88698,139.17953,42532],[35.88814,139.17797,42332],[35.88969,139.17707,42132],[35.89108,139.17586,41932],[35.89283,139.17614,41732],[35.89438,139.1761,41532],[35.89579,139.17545,41332],[35.89625,139.17364,41132],[35.89755,139.17321,40932],[35.8991,139.17389,40732],[35.90074,139.17313,40532],[35.90226,139.1727,40332],[35.9037,139.17369,40132],[35.90518,139.17492,39932],[35.90642,139.17559,39732],[35.90733,139.17532,39532],[35.90901,139.17476,39332],[35.90931,139.17367,39132],[35.91014,139.17453,38932],[35.91093,139.17597,38732],[35.91099,139.17528,38532],[35.90988,139.17398,38332],[35.90892,139.1742,38132],[35.90848,139.175,37932],[35.90729,139.17548,37732],[35.90596,139.17587,37532],[35.90466,139.17458,37332],[35.90339,139.17315,37132],[35.90172,139.17242,36932],[35.90022,139.17348,36732],[35.89855,139.17369,36532],[35.89711,139.17274,36332],[35.896,139.17337,36132],[35.89659,139.17129,35932],[35.89765,139.16965,35732],[35.89902,139.16875,35532],[35.89905,139.16653,35332],[35.89985,139.16458,35132],[35.9,139.16243,34932],[35.90137,139.16219,34732],[35.90302,139.16148,34532],[35.90457,139.16038,34332],[35.90486,139.15849,34132],[35.90615,139.1575,33932],[35.90653,139.15537,33732],[35.90752,139.15352,33532],[35.90815,139.15157,33332],[35.90979,139.15073,33132],[35.91068,139.14881,32932],[35.91217,139.14881,32732],[35.91337,139.1503,32532],[35.91508,139.15098,32332],[35.9167,139.15023,32132],[35.91833,139.15035,31932],[35.92003,139.15098,31732],[35.92181,139.15114,31532],[35.92186,139.15197,31332],[35.92361,139.15163,31132],[35.92376,139.1521,30932],[35.9249,139.15177,30732],[35.92536,139.15113,30532],[35.92547,139.14961,30332],[35.92612,139.14944,30132],[35.92654,139.15028,29932],[35.92727,139.14901,29732],[35.92729,139.14715,29532],[35.92788,139.14755,29332],[35.92798,139.14934,29132],[35.92807,139.15132,28932],[35.92964,139.1512,28732],[35.93044,139.15215,28532],[35.92921,139.15147,28332],[35.92774,139.15073,28132],[35.92793,139.14871,27932],[35.92751,139.14703,27732],[35.92752,139.14779,27532],[35.92671,139.149,27332],[35.92609,139.15044,27132],[35.92618,139.14873,26932],[35.9251,139.15014,26732],[35.92586,139.1513,26532],[35.92433,139.15174,26332],[35.92418,139.1516,26132],[35.92306,139.15185,25932],[35.92136,139.15168,25732],[35.92122,139.15113,25532],[35.91946,139.15079,25332],[35.91788,139.14992,25132],[35.91614,139.15042,24932],[35.91452,139.15075,24732],[35.91286,139.14995,24532],[35.91166,139.14844,24332],[35.91039,139.14945,24132],[35.90929,139.1511,23932],[35.90774,139.15207,23732],[35.90723,139.15415,23532],[35.90635,139.15606,23332],[35.90564,139.15778,23132],[35.90504,139.15918,22932],[35.90402,139.16065,22732],[35.90251,139.16183,22532],[35.90087,139.16183,22332],[35.89979,139.16311,22132],[35.89963,139.16524,21932],[35.899,139.16726,21732],[35.89883,139.1694,21532],[35.89713,139.16995,21332],[35.89635,139.17195,21132],[35.89583,139.17407,20932],[35.89543,139.1761,20732],[35.89379,139.17575,20532],[35.89217,139.17622,20332],[35.89045,139.17605,20132],[35.88924,139.17765,19932],[35.88761,139.17843,19732],[35.88644,139.18,19532],[35.88471,139.18059,19332],[35.88302,139.18132,19132],[35.88136,139.18215,18932],[35.87975,139.18299,18732],[35.87812,139.18381,18532],[35.87654,139.18447,18332],[35.87519,139.1857,18132],[35.87364,139.18659,17932],[35.87233,139.18642,17732],[35.87062,139.18675,17532],[35.86882,139.18686,17332],[35.86702,139.18696,17132],[35.86539,139.18779,16932],[35.8637,139.18764,16732],[35.86198,139.18822,16532],[35.86039,139.18922,16332],[35.85916,139.19083,16132],[35.85785,139.19228,15932],[35.85623,139.19324,15732],[35.85521,139.19503,15532],[35.8546,139.19709,15332],[35.85377,139.19905,15132],[35.85224,139.20022,14932],[35.85096,139.20167,14732],[35.85173,139.20355,14532],[35.85345,139.20408,14332],[35.85517,139.20397,14132],[35.85647,139.2055,13932],[35.8577,139.20711,13732],[35.85667,139.20834,13532],[35.85637,139.21025,13332],[35.8577,139.21174,13132],[35.859,139.21311,12932],[35.85838,139.21509,12732],[35.85868,139.21723,12532],[35.85959,139.21907,12332],[35.8609,139.2206,12132],[35.86179,139.2225,11932],[35.86289,139.22426,11732],[35.86311,139.2264,11532],[35.86262,139.22847,11332],[35.86104,139.22934,11132],[35.8601,139.23099,10932],[35.86115,139.23264,10732],[35.86268,139.23375,10532],[35.86317,139.23532,10332],[35.86175,139.23667,10132],[35.86069,139.23843,9932],[35.85928,139.23979,9732],[35.8588,139.24186,9532],[35.85755,139.24344,9332],[35.85653,139.24527,9132],[35.85555,139.24711,8932],[35.85409,139.24841,8732],[35.85273,139.24984,8532],[35.85169,139.25159,8332],[35.85032,139.253,8132],[35.84929,139.25483,7932],[35.84783,139.25603,7732],[35.84652,139.25725,7532],[35.8459,139.25929,7332],[35.84519,139.26131,7132],[35.84507,139.2635,6932],[35.84436,139.26534,6732],[35.84358,139.2673,6532],[35.84347,139.26952,6332],[35.84328,139.27172,6132],[35.84286,139.27387,5932],[35.842,139.27577,5732],[35.84117,139.27757,5532],[35.84014,139.27938,5332],[35.83896,139.28089,5132],[35.83773,139.28176,4932],[35.83778,139.28398,4732],[35.8379,139.28618,4532],[35.83822,139.28836,4332],[35.83848,139.29055,4132],[35.83816,139.29273,3932],[35.8376,139.29484,3732],[35.83662,139.29658,3532],[35.83558,139.2978,3332],[35.83683,139.29916,3132],[35.83809,139.30012,2932],[35.83806,139.30234,2732],[35.83838,139.30452,2532],[35.83829,139.30672,2332],[35.83799,139.30845,2132],[35.83968,139.30919,1932],[35.84124,139.31029,1732],[35.84279,139.31142,1532],[35.84396,139.31309,1332],[35.84547,139.31416,1132],[35.84721,139.3147,932],[35.84851,139.31616,732],[35.84969,139.31784,532],[35.85092,139.31669,332],[35.85178,139.31777,132]];
+const TOTAL_M = 64532;
+const DEADLINE_HH = 13, DEADLINE_MM = 0;
+const CP = [
+  { name:"有間ダム公衆トイレ", lat:35.874121, lon:139.176967, dl:"08:50", rem_m:45300, note:"補給・トイレ 5分" },
+  { name:"天目指峠",           lat:35.911097, lon:139.176405, dl:"09:45", rem_m:38700, note:"折り返し・休憩 3分" },
+  { name:"山伏峠",             lat:35.930759, lon:139.152180, dl:"11:00", rem_m:28500, note:"折り返し・補給 7分" },
+  { name:"飯能駅",             lat:35.851100, lon:139.319061, dl:"13:00", rem_m:0,     note:"輪行準備" },
+];
+let gps=null, manualGps=null, speedBuffer=[];
+function hav(a,b,c,d){const R=6371000,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;const x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2;return 2*R*Math.asin(Math.sqrt(x));}
+function getRemainingM(lat,lon){let minD=Infinity,minR=null;for(let i=0;i<ROUTE.length;i++){const d=hav(lat,lon,ROUTE[i][0],ROUTE[i][1]);if(d<minD){minD=d;minR=ROUTE[i][2];}}return minR;}
+function dlMs(s){const[h,m]=s.split(":").map(Number),d=new Date();d.setHours(h,m,0,0);return d.getTime();}
+function deadlineMs(){const d=new Date();d.setHours(DEADLINE_HH,DEADLINE_MM,0,0);return d.getTime();}
+function fmtTime(ms){const d=new Date(ms);return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}
+function fmtCD(ms){const abs=Math.abs(ms),h=Math.floor(abs/3600000),m=Math.floor((abs%3600000)/60000),s=Math.floor((abs%60000)/1000);return h>0?h+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"):m+":"+String(s).padStart(2,"0");}
+function parseC(v){const m=v.replace(/[^\d.,\-]/g,"").match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);if(!m)return null;const la=parseFloat(m[1]),lo=parseFloat(m[2]);return(isNaN(la)||isNaN(lo)||la<30||la>40||lo<135||lo>145)?null:{lat:la,lon:lo};}
+navigator.geolocation&&navigator.geolocation.watchPosition(
+  p=>{const spd=p.coords.speed;if(spd!==null&&spd>=0){speedBuffer.push(spd*3.6);if(speedBuffer.length>10)speedBuffer.shift();}gps={lat:p.coords.latitude,lon:p.coords.longitude,acc:Math.round(p.coords.accuracy),spd};document.getElementById("gps-dot").style.background="#00dd66";document.getElementById("gps-text").style.color="#00dd66";document.getElementById("gps-text").textContent=gps.lat.toFixed(5)+", "+gps.lon.toFixed(5);const sp=spd>0.5?" · "+(spd*3.6).toFixed(1)+" km/h":"";document.getElementById("gps-sub").textContent="精度 ±"+gps.acc+"m"+sp;},
+  ()=>{document.getElementById("gps-dot").style.background="#ff4444";document.getElementById("gps-text").style.color="#ff8888";document.getElementById("gps-text").textContent="GPS利用不可 → 手動入力";document.getElementById("manual-panel").classList.add("open");},
+  {enableHighAccuracy:true,maximumAge:2000,timeout:10000}
+);
+function toggleManual(){document.getElementById("manual-panel").classList.toggle("open");}
+function applyManual(){const p=parseC(document.getElementById("manual-input").value);if(!p){document.getElementById("manual-error").textContent="形式エラー。例: 35.8741, 139.1769";return;}manualGps=p;document.getElementById("manual-error").textContent="";document.getElementById("manual-clear").style.display="inline";document.getElementById("manual-panel").classList.remove("open");document.getElementById("gps-dot").style.background="#aaaaff";document.getElementById("gps-text").style.color="#aaaaff";document.getElementById("gps-text").textContent="手動: "+p.lat.toFixed(5)+", "+p.lon.toFixed(5);}
+function clearManual(){manualGps=null;document.getElementById("manual-input").value="";document.getElementById("manual-clear").style.display="none";document.getElementById("gps-dot").style.background="#aa8800";document.getElementById("gps-text").style.color="#aaa";document.getElementById("gps-text").textContent="GPS取得中…";}
+function getAvgSpeedKmh(){if(speedBuffer.length===0)return null;return speedBuffer.reduce((a,b)=>a+b,0)/speedBuffer.length;}
+function render(){
+  const now=new Date(),ms=now.getTime();
+  const hh=String(now.getHours()).padStart(2,"0"),mm=String(now.getMinutes()).padStart(2,"0"),ss=String(now.getSeconds()).padStart(2,"0");
+  document.getElementById("clock-hhmm").innerHTML=hh+'<span class="sep">:</span>'+mm;
+  document.getElementById("clock-ss").textContent=ss;
+  const ag=gps||manualGps,dl=deadlineMs(),timeLeftMs=dl-ms;
+  let remM=null;if(ag)remM=getRemainingM(ag.lat,ag.lon);
+  const speedKmh=getAvgSpeedKmh(),speedMs=speedKmh?speedKmh/3.6:null;
+  let etaNow=null,etaNowMs=null;
+  if(remM!==null&&speedMs){const sec=remM/speedMs;etaNowMs=ms+sec*1000;etaNow=fmtTime(etaNowMs);}
+  let canGoKm=null;
+  if(remM!==null&&speedMs&&timeLeftMs>0){const ret=remM/speedMs,spare=timeLeftMs/1000-ret;canGoKm=spare>0?(spare*speedMs)/1000:0;}
+  let needSpeedKmh=null;
+  if(remM!==null&&timeLeftMs>0)needSpeedKmh=(remM/1000)/(timeLeftMs/3600000);
+  const isOnTime=etaNowMs&&etaNowMs<=dl,marginMs=etaNowMs?dl-etaNowMs:null;
+  let statusText,cardBg,cardBorder,statusColor;
+  if(!ag){statusText="GPS取得中…";cardBg="#111";cardBorder="#333";statusColor="#888";}
+  else if(etaNowMs&&etaNowMs>dl){statusText="🚨 引き返してください";cardBg="#220000";cardBorder="#ff2222";statusColor="#ff4444";}
+  else if(canGoKm!==null&&canGoKm<0.5){statusText="⚠️ そろそろ折り返し";cardBg="#1a1400";cardBorder="#ffcc00";statusColor="#ffcc00";}
+  else{statusText="✅ 順調";cardBg="#001a0a";cardBorder="#00cc55";statusColor="#00cc55";}
+  const mc=document.getElementById("main-card");mc.style.background=cardBg;mc.style.borderColor=cardBorder;
+  document.getElementById("main-status").style.color=statusColor;document.getElementById("main-status").textContent=statusText;
+  const etaEl=document.getElementById("eta-now"),etaMEl=document.getElementById("eta-now-margin");
+  if(etaNow){etaEl.textContent=etaNow;etaEl.style.color=isOnTime?"#fff":"#ff4444";if(marginMs!==null){const absMins=Math.floor(Math.abs(marginMs)/60000);etaMEl.textContent=(marginMs>=0?"余裕 ":"超過 ")+absMins+"分";etaMEl.style.color=marginMs>=0?"#00cc55":"#ff4444";}}
+  else{etaEl.textContent="--:--";etaMEl.textContent="速度取得中";etaEl.style.color="#888";etaMEl.style.color="#555";}
+  const cgEl=document.getElementById("can-go");
+  if(canGoKm!==null){cgEl.textContent=canGoKm.toFixed(1);cgEl.style.color=canGoKm<1?"#ff4444":canGoKm<3?"#ffcc00":"#fff";}
+  else{cgEl.textContent="-.-";cgEl.style.color="#888";}
+  const nsEl=document.getElementById("need-speed"),csEl=document.getElementById("cur-speed");
+  if(needSpeedKmh!==null){nsEl.textContent=needSpeedKmh.toFixed(1);nsEl.style.color=(speedKmh&&speedKmh>=needSpeedKmh)?"#00cc55":"#ff6666";}else{nsEl.textContent="--.-";nsEl.style.color="#888";}
+  if(speedKmh!==null)csEl.textContent=speedKmh.toFixed(1);else csEl.textContent="--.-";
+  let nextIdx=-1;
+  const cpData=CP.map((cp,i)=>{const cpDlMs=dlMs(cp.dl),rem=cpDlMs-ms;const dist=ag?hav(ag.lat,ag.lon,cp.lat,cp.lon):null;const passed=dist!==null&&dist<150;const od=rem<0&&!passed,urg=rem>0&&rem<20*60000&&!passed;if(!passed&&nextIdx<0)nextIdx=i;return{...cp,rem,dist,passed,od,urg};});
+  const con=document.getElementById("checkpoints");con.innerHTML="";
+  cpData.forEach((cp,i)=>{
+    const isNext=i===nextIdx;let bc,bg,nc,dc,cc;
+    if(cp.passed){bc="#222";bg="#0a0a0a";nc="#555";dc="#555";cc="#555";}
+    else if(cp.od){bc="#ff2222";bg="#1a0000";nc="#ff6666";dc="#ff3333";cc="#ff3333";}
+    else if(cp.urg){bc="#ffcc00";bg="#1a1400";nc="#ffee44";dc="#ffcc00";cc="#ffcc00";}
+    else if(isNext){bc="#0088ff";bg="#001225";nc="#44aaff";dc="#fff";cc="#6699ff";}
+    else{bc="#2a2a2a";bg="#0d0d0d";nc="#aaa";dc="#ccc";cc="#555";}
+    let distInfo="";
+    if(ag&&!cp.passed&&remM!==null){const toNext=remM-cp.rem_m;distInfo=toNext>0?"あと "+(toNext/1000).toFixed(1)+" km":"通過済または近傍";}
+    else if(!ag)distInfo="出発から "+(64.5-(cp.rem_m/1000)).toFixed(1)+" km地点";
+    const prefix=cp.passed?"✓ ":isNext?"▶ ":"　";
+    const cdTxt=cp.passed?"":cp.od?"+"+fmtCD(cp.rem)+" 超過":"残 "+fmtCD(cp.rem);
+    const d=document.createElement("div");d.className="cp";d.style.background=bg;d.style.borderColor=bc;d.style.opacity=cp.passed?"0.3":"1";
+    d.innerHTML=`<div class="cp-row"><div><div class="cp-name" style="color:${nc}">${prefix}${cp.name}</div><div class="cp-meta">${cp.note}</div>${distInfo?`<div class="cp-rem">${distInfo}</div>`:""}</div><div><div class="cp-dl" style="color:${dc}">${cp.dl}</div>${!cp.passed?`<div class="cp-cd" style="color:${cc}">${cdTxt}</div>`:""}</div></div>`;
+    con.appendChild(d);
+  });
+  requestAnimationFrame(render);
+}
+render();
+</script>
+</body>
+</html>
