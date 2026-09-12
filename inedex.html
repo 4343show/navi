@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>名栗チャレンジ ナビ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #000;
+    color: #fff;
+    font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    padding: 12px;
+    max-width: 420px;
+    margin: 0 auto;
+    min-height: 100vh;
+    -webkit-text-size-adjust: 100%;
+  }
+  #clock { text-align: center; padding: 8px 0 12px; }
+  #clock-hhmm { font-size: 88px; font-weight: 900; letter-spacing: -2px; line-height: 1; color: #FFE033; font-variant-numeric: tabular-nums; }
+  #clock-hhmm .sep { color: #886600; }
+  #clock-ss { font-size: 28px; color: #886600; margin-top: 2px; font-variant-numeric: tabular-nums; font-weight: 700; }
+  #status { border-radius: 8px; padding: 14px; text-align: center; margin-bottom: 10px; font-size: 22px; font-weight: 900; letter-spacing: 0.03em; border-width: 3px; border-style: solid; }
+  #gps-panel { background: #111; border: 2px solid #333; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; }
+  #gps-row { display: flex; align-items: center; gap: 8px; }
+  #gps-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  #gps-text { font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  #gps-sub { font-size: 12px; color: #888; margin-top: 4px; padding-left: 18px; }
+  #manual-btn { background: #1a1a50; color: #aaaaff; border: 2px solid #4444aa; border-radius: 6px; padding: 6px 13px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  #manual-panel { margin-top: 10px; border-top: 1px solid #333; padding-top: 10px; display: none; }
+  #manual-panel.open { display: block; }
+  #manual-hint { font-size: 12px; color: #888; margin-bottom: 8px; }
+  #manual-row { display: flex; gap: 6px; }
+  #manual-input { flex: 1; background: #1a1a1a; color: #fff; border: 2px solid #444; border-radius: 6px; padding: 8px 10px; font-size: 14px; }
+  #manual-ok { background: #003a1a; color: #00ee66; border: 2px solid #00aa44; border-radius: 6px; padding: 8px 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  #manual-error { font-size: 12px; color: #ff5555; margin-top: 6px; font-weight: 600; }
+  #manual-clear { margin-top: 6px; background: none; color: #666; border: none; font-size: 12px; cursor: pointer; display: none; }
+  #checkpoints { display: flex; flex-direction: column; gap: 8px; }
+  .cp { border-radius: 8px; padding: 14px 16px; border-width: 3px; border-style: solid; }
+  .cp-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .cp-left { flex: 1; min-width: 0; }
+  .cp-name { font-size: 17px; font-weight: 900; margin-bottom: 3px; }
+  .cp-note { font-size: 12px; color: #888; }
+  .cp-dist { font-size: 13px; margin-top: 5px; font-weight: 600; }
+  .cp-right { text-align: right; flex-shrink: 0; }
+  .cp-deadline { font-size: 26px; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .cp-countdown { font-size: 14px; font-variant-numeric: tabular-nums; margin-top: 3px; font-weight: 700; }
+  #footer { margin-top: 12px; padding: 8px 12px; background: #111; border-radius: 6px; font-size: 11px; color: #555; line-height: 1.8; }
+</style>
+</head>
+<body>
+<div id="clock">
+  <div id="clock-hhmm">--<span class="sep">:</span>--</div>
+  <div id="clock-ss">--</div>
+</div>
+<div id="status">--</div>
+<div id="gps-panel">
+  <div id="gps-row">
+    <div id="gps-dot" style="background:#aa8800"></div>
+    <div id="gps-text" style="color:#aaa">GPS取得中…</div>
+    <button id="manual-btn" onclick="toggleManual()">手動入力</button>
+  </div>
+  <div id="gps-sub"></div>
+  <div id="manual-panel">
+    <div id="manual-hint">GoogleマップやYahoo!カーナビなどで現在地の緯度経度をコピー&ペースト</div>
+    <div id="manual-row">
+      <input id="manual-input" placeholder="35.8741, 139.1769" type="text" inputmode="decimal">
+      <button id="manual-ok" onclick="applyManual()">OK</button>
+    </div>
+    <div id="manual-error"></div>
+    <button id="manual-clear" onclick="clearManual()">クリア</button>
+  </div>
+</div>
+<div id="checkpoints"></div>
+<div id="footer">
+  飯能駅スタート 07:00 想定 ／ 帰宅デッドライン 15:00<br>
+  現在地から 150m 以内で通過済みとみなす
+</div>
+<script>
+const CP = [
+  { name:"有間ダム公衆トイレ", lat:35.874121, lon:139.176967, dl:"08:50", km:19.1, note:"補給・トイレ 5分" },
+  { name:"天目指峠",           lat:35.911097, lon:139.176405, dl:"09:45", km:25.9, note:"折り返し・休憩 3分" },
+  { name:"山伏峠",             lat:35.930759, lon:139.152180, dl:"11:00", km:36.0, note:"折り返し・補給 7分" },
+  { name:"飯能駅",             lat:35.851100, lon:139.319061, dl:"13:00", km:64.5, note:"輪行準備" },
+];
+let gps = null, manualGps = null;
+function hav(a,b,c,d){ const R=6371000,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180; const x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2; return 2*R*Math.asin(Math.sqrt(x)); }
+function dlMs(s){ const[h,m]=s.split(":").map(Number),d=new Date(); d.setHours(h,m,0,0); return d.getTime(); }
+function fmtCD(ms){ const abs=Math.abs(ms),h=Math.floor(abs/3600000),m=Math.floor((abs%3600000)/60000),s=Math.floor((abs%60000)/1000); return h>0?h+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"):m+":"+String(s).padStart(2,"0"); }
+function parseC(v){ const m=v.replace(/[^\d.,\-]/g,"").match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/); if(!m) return null; const la=parseFloat(m[1]),lo=parseFloat(m[2]); return(isNaN(la)||isNaN(lo)||la<30||la>40||lo<135||lo>145)?null:{lat:la,lon:lo}; }
+navigator.geolocation && navigator.geolocation.watchPosition(
+  p=>{ gps={lat:p.coords.latitude,lon:p.coords.longitude,acc:Math.round(p.coords.accuracy),spd:p.coords.speed}; document.getElementById("gps-dot").style.background="#00dd66"; document.getElementById("gps-text").style.color="#00dd66"; document.getElementById("gps-text").textContent=gps.lat.toFixed(5)+", "+gps.lon.toFixed(5); const sp=gps.spd>0.5?" · "+(gps.spd*3.6).toFixed(1)+" km/h":""; document.getElementById("gps-sub").textContent="精度 ±"+gps.acc+"m"+sp; },
+  ()=>{ document.getElementById("gps-dot").style.background="#ff4444"; document.getElementById("gps-text").style.color="#ff8888"; document.getElementById("gps-text").textContent="GPS利用不可 → 手動入力"; document.getElementById("manual-panel").classList.add("open"); },
+  {enableHighAccuracy:true,maximumAge:2000,timeout:10000}
+);
+function toggleManual(){ document.getElementById("manual-panel").classList.toggle("open"); }
+function applyManual(){ const p=parseC(document.getElementById("manual-input").value); if(!p){document.getElementById("manual-error").textContent="形式エラー。例: 35.8741, 139.1769";return;} manualGps=p; document.getElementById("manual-error").textContent=""; document.getElementById("manual-clear").style.display="inline"; document.getElementById("manual-panel").classList.remove("open"); document.getElementById("gps-dot").style.background="#aaaaff"; document.getElementById("gps-text").style.color="#aaaaff"; document.getElementById("gps-text").textContent="手動: "+p.lat.toFixed(5)+", "+p.lon.toFixed(5); }
+function clearManual(){ manualGps=null; document.getElementById("manual-input").value=""; document.getElementById("manual-clear").style.display="none"; document.getElementById("gps-dot").style.background="#aa8800"; document.getElementById("gps-text").style.color="#aaa"; document.getElementById("gps-text").textContent="GPS取得中…"; }
+function render(){
+  const now=new Date(), ms=now.getTime();
+  const hh=String(now.getHours()).padStart(2,"0"), mm=String(now.getMinutes()).padStart(2,"0"), ss=String(now.getSeconds()).padStart(2,"0");
+  document.getElementById("clock-hhmm").innerHTML=hh+'<span class="sep">:</span>'+mm;
+  document.getElementById("clock-ss").textContent=ss;
+  const ag=gps||manualGps; let overdue=false, urgent=false, nextIdx=-1;
+  const data=CP.map((cp,i)=>{ const rem=dlMs(cp.dl)-ms; const dist=ag?hav(ag.lat,ag.lon,cp.lat,cp.lon):null; const passed=dist!==null&&dist<150; const od=rem<0&&!passed, urg=rem>0&&rem<20*60000&&!passed; if(od)overdue=true; if(urg)urgent=true; if(!passed&&nextIdx<0)nextIdx=i; return {...cp,rem,dist,passed,od,urg}; });
+  const st=document.getElementById("status");
+  if(overdue){ st.textContent="🚨 引き返してください"; st.style.cssText="color:#fff;background:#660000;border-color:#ff2222;border-radius:8px;padding:14px;text-align:center;margin-bottom:10px;font-size:22px;font-weight:900;letter-spacing:0.03em;border-width:3px;border-style:solid;"; }
+  else if(urgent){ st.textContent="⚠️ 急いでください"; st.style.cssText="color:#000;background:#ffcc00;border-color:#ffaa00;border-radius:8px;padding:14px;text-align:center;margin-bottom:10px;font-size:22px;font-weight:900;letter-spacing:0.03em;border-width:3px;border-style:solid;"; }
+  else { st.textContent="✅ 順調"; st.style.cssText="color:#000;background:#00cc55;border-color:#00ff66;border-radius:8px;padding:14px;text-align:center;margin-bottom:10px;font-size:22px;font-weight:900;letter-spacing:0.03em;border-width:3px;border-style:solid;"; }
+  const con=document.getElementById("checkpoints"); con.innerHTML="";
+  data.forEach((cp,i)=>{ const isNext=i===nextIdx; let borderCol,bgCol,nameCol,dlCol,cdCol; if(cp.passed){borderCol="#333";bgCol="#0a0a0a";nameCol="#555";dlCol="#555";cdCol="#555";}else if(cp.od){borderCol="#ff2222";bgCol="#220000";nameCol="#ff6666";dlCol="#ff3333";cdCol="#ff3333";}else if(cp.urg){borderCol="#ffcc00";bgCol="#1a1400";nameCol="#ffee44";dlCol="#ffcc00";cdCol="#ffcc00";}else if(isNext){borderCol="#0088ff";bgCol="#001833";nameCol="#44aaff";dlCol="#ffffff";cdCol="#6699ff";}else{borderCol="#333";bgCol="#111";nameCol="#ccc";dlCol="#fff";cdCol="#666";} const distTxt=ag&&!cp.passed&&cp.dist!==null?"現在地から "+(cp.dist/1000).toFixed(1)+" km":"出発から "+cp.km+" km地点"; const distCol=ag&&!cp.passed?"#55aaff":"#555"; const cdTxt=cp.passed?"":cp.od?"+"+fmtCD(cp.rem)+" 超過":"残 "+fmtCD(cp.rem); const prefix=cp.passed?"✓ ":isNext?"▶ ":"　"; const d=document.createElement("div"); d.className="cp"; d.style.background=bgCol; d.style.borderColor=borderCol; d.style.opacity=cp.passed?"0.3":"1"; d.innerHTML=`<div class="cp-row"><div class="cp-left"><div class="cp-name" style="color:${nameCol}">${prefix}${cp.name}</div><div class="cp-note">${cp.note}</div><div class="cp-dist" style="color:${distCol}">${distTxt}</div></div><div class="cp-right"><div class="cp-deadline" style="color:${dlCol}">${cp.dl}</div>${!cp.passed?`<div class="cp-countdown" style="color:${cdCol}">${cdTxt}</div>`:""}</div></div>`; con.appendChild(d); });
+  requestAnimationFrame(render);
+}
+render();
+</script>
+</body>
+</html>
